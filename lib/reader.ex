@@ -1,11 +1,11 @@
 
 defmodule Reader do
 
-  @left [?e,?a,?o,?i,?h,?y,?u]
+  @left [?e,?a,?o,?i,?h,?y,?u,?f]
     |> Enum.flat_map(&([&1, &1-32]))
     |> Enum.concat([?,, ?., ?'])
 
-  @right [?t,?n,?s,?r, ?g,?d,?l,?w,?c,?m,?v, ?j,?z,?x,?q]
+  @right [?t,?n,?s,?r, ?g,?d,?l,?w,?c,?v, ?m, ?p,?b, ?j,?z,?x,?q]
     |> Enum.flat_map(&([&1, &1-32]))
     # |> Enum.concat([?(,?),?[,?],?{,?},?_,?%,?#,?$ ])
 
@@ -29,6 +29,60 @@ defmodule Reader do
   #       raise "???"
   #   end
   # end
+
+  #TODO this makes digraphs unnecessarily
+  def process_word(_mode, [], acc), do: acc
+  def process_word(:pe, chars, acc) do
+    Map.update(acc, << Enum.at(chars, 0) >>, 1, &(&1 + 1))
+  end
+  def process_word(:p1, chars, acc) do
+    rchars = Enum.reverse(chars)
+    Map.update(acc, << Enum.at(rchars, 0) >>, 1, &(&1 + 1))
+  end
+  def process_word(_mode, [_|[]], acc), do: acc
+  def process_word(:p2, chars, acc) do
+    rchars = Enum.reverse(chars)
+    Map.update(acc, << Enum.at(rchars, 1) >>, 1, &(&1 + 1))
+  end
+  def process_word(_mode, chars, acc) do
+    cwi = chars |> Enum.with_index()
+
+    dis =
+      for {c1, i} <- cwi,
+          {c2, j} <- cwi,
+          i < j, do: <<c1, c2>>
+    dis
+    |> Enum.reduce(acc, fn(k, a) ->
+      Map.update(a, k, 1, &(&1 + 1))
+    end)
+    # Map.update(acc, List.to_string(chars), 1, &(&1 + 1)) #was slower!!!
+  end
+
+  def read_word(mode, submode, line, state, acc) do
+    case read_word(line) do
+      :end ->
+        process_word(mode, state, acc)
+      {:reset, remaining}->
+        read_word(mode, submode, remaining, [], process_word(mode, state, acc))
+      {char, remaining} ->
+        if subfilter(submode, char) do
+          read_word(mode, submode, remaining, [char | state], acc)
+        else
+          read_word(mode, submode, remaining, state, acc)
+        end
+      _ ->
+        raise "???"
+    end
+  end
+  def read_word(<<>>), do: :end
+  def read_word(<<10>>), do: :end
+  def read_word(<<32, rest::binary>>), do: {:reset, rest}
+  def read_word(<<c, rest::binary>>) when c < 33 or c > 126 do
+    read_word(rest)
+  end
+  def read_word(<<c, rest::binary>>), do: {c, rest}
+
+
   def read_n(mode, submode, line, state, acc) do
     case read_n(line) do
       :end ->
@@ -57,6 +111,7 @@ defmodule Reader do
   def subfilter(:r, c) when c in @left, do: false
   def subfilter(:l, c) when c in @right, do: false
   def subfilter(:p, c) when (c >= 65 and c <= 90) or (c >= 97 and c <= 122), do: false
+  def subfilter(:np, c) when c < 65 or (c > 90 and c < 97) or c > 122, do: false
   def subfilter(_, _), do: true
 
   def read_n(<<>>), do: :end
@@ -102,6 +157,19 @@ defmodule Reader do
   # end
 
   #returns list of maps
+  def do_line(line, :pe=mode, submode) do
+    read_word(mode, submode, line, [], %{})
+  end
+  def do_line(line, :p1=mode, submode) do
+    read_word(mode, submode, line, [], %{})
+  end
+  def do_line(line, :p2=mode, submode) do
+    read_word(mode, submode, line, [], %{})
+  end
+  def do_line(line, :w=mode, submode) do
+    read_word(mode, submode, line, [], %{})
+  end
+
   def do_line(line, mode, submode) do
     # IO.inspect byte_size(line)
     # spawn(__MODULE__, :read_n, [self, mode, submode, line, init_state(mode), %{}])
@@ -134,7 +202,7 @@ defmodule Reader do
   # perhaps the msg of list of maps is too large for message passing
 
 
-  def do_lines(lines, {mode, submode}=m, output_dir) do
+  def do_lines(lines, {mode, submode}=_m, output_dir) do
     #process for each line, results merged as they come in
     # IO.inspect Enum.count(lines)
 
@@ -169,8 +237,8 @@ defmodule Reader do
     String.to_atom(to_string(mode) <> to_string(submode))
   end
 
-  def start(modes) do
-    # modes
-    # |> Enum.map(&:ets.new(modetable(&1), [:ordered_set, :public, :named_table]))
-  end
+  # def start(modes) do
+  #   # modes
+  #   # |> Enum.map(&:ets.new(modetable(&1), [:ordered_set, :public, :named_table]))
+  # end
 end

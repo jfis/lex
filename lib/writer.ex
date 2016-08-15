@@ -81,13 +81,57 @@ defmodule Writer do
     #|> IO.inspect
   end
 
-  def write(m, :ma, dir) do
+  def write(m, :m, :a, dir) do
     m
     # |> Util.reject_vowels()
-    |> write_list(make_path(dir, "m"))
+    |> write_list(make_path(dir, "ma"))
     |> ignore_case()
     |> Util.sort_map_by_val
-    |> write_list(make_path(dir, "m_ignore_case"))
+    |> write_list(make_path(dir, "ma_ignore_case"))
+  end
+
+  def write(m, :pe=mode, submode, dir) do
+    n = to_string(mode) <> to_string(submode)
+    m
+    # |> Util.reject_vowels()
+    |> write_list(make_path(dir, "#{n}"))
+    # |> ignore_case()
+    # |> Util.sort_map_by_val
+    # |> write_list(make_path(dir, "#{mode}_ignore_case"))
+  end
+
+  def write(m, :p1=mode, submode, dir) do
+    n = to_string(mode) <> to_string(submode)
+    m
+    # |> Util.reject_vowels()
+    |> write_list(make_path(dir, "#{n}"))
+    # |> ignore_case()
+    # |> Util.sort_map_by_val
+    # |> write_list(make_path(dir, "#{mode}_ignore_case"))
+  end
+
+  def write(m, :p2=mode, submode, dir) do
+    n = to_string(mode) <> to_string(submode)
+    m
+    # |> Util.reject_vowels()
+    |> write_list(make_path(dir, "#{n}"))
+    # |> ignore_case()
+    # |> Util.sort_map_by_val
+    # |> write_list(make_path(dir, "#{mode}_ignore_case"))
+  end
+
+  def write(m, :w, submode, dir) do
+    n = to_string(:w) <> to_string(submode)
+    m
+    |> ignore_case()
+    |> per_letter()
+    |> sort2()
+    |> write_list2(make_path(dir, "#{n}_per_letter"))
+
+    m
+    |> per_letter()
+    |> sort2()
+    |> write_list2(make_path(dir, "#{n}_per_letter2"))
   end
 
   def write(m, mode, submode, dir) do
