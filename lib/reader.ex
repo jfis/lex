@@ -1,34 +1,21 @@
 
 defmodule Reader do
 
-  @left [?e,?a,?o,?i,?h,?y,?u,?f]
+  @vowels [?e,?a,?o,?i,?u]
+    |> Enum.flat_map(&([&1, &1-32]))
+
+
+  @left [?e,?a,?o,?i,?h,?y,?u,?f, ?k]
     |> Enum.flat_map(&([&1, &1-32]))
     |> Enum.concat([?,, ?., ?'])
 
-  @right [?t,?n,?s,?r, ?g,?d,?l,?w,?c,?v, ?m, ?p,?b, ?j,?z,?x,?q]
+  @right [?t,?n,?s,?r, ?c,?d,?l, ?m,?g,?w,?p,?b, ?v,?x, ?q,?j,?z]
     |> Enum.flat_map(&([&1, &1-32]))
-    # |> Enum.concat([?(,?),?[,?],?{,?},?_,?%,?#,?$ ])
+    |> Enum.concat([?(,?),?[,?],?{,?} ])
 
-  @shift_left [?|, ?&, ?=, ?<, ?>, ?!, ?+, ]
-  @shift_right [?(, ?), ?{, ?}, ?_, ?%, ?# ]
+  # @shift_left [?|, ?&, ?=, ?<, ?>, ?!, ?+, ]
+  # @shift_right [?(, ?), ?{, ?}, ?_, ?%, ?# ]
 
-  # def read_n(pid, mode, submode, line, state) do
-  #   case read_n(line) do
-  #     :end ->
-  #       send(pid, :done)
-  #     {:reset, remaining}->
-  #       read_n(pid, mode, submode, remaining, init_state(mode))
-  #     {char, remaining} ->
-  #       if subfilter(submode, char) do
-  #         send(pid, {:gram, make_gram(mode, char, state)} )
-  #         read_n(pid, mode, submode, remaining, next_state(mode, char, state))
-  #       else
-  #         read_n(pid, mode, submode, remaining, state)
-  #       end
-  #     _ ->
-  #       raise "???"
-  #   end
-  # end
 
   #TODO this makes digraphs unnecessarily
   def process_word(_mode, [], acc), do: acc
@@ -110,6 +97,8 @@ defmodule Reader do
   def subfilter(:a, _), do: true
   def subfilter(:r, c) when c in @left, do: false
   def subfilter(:l, c) when c in @right, do: false
+  def subfilter(:nv, c) when c in @vowels, do: false
+  def subfilter(:v, c) when not c in @vowels, do: false
   def subfilter(:p, c) when (c >= 65 and c <= 90) or (c >= 97 and c <= 122), do: false
   def subfilter(:np, c) when c < 65 or (c > 90 and c < 97) or c > 122, do: false
   def subfilter(_, _), do: true
@@ -126,16 +115,20 @@ defmodule Reader do
   def next_state(:m, _char, _state), do: []
   def next_state(:d, char, _state), do: {<<char>>}
   def next_state(:t, char, {last1, _}), do: {<<char>>, last1}
+  def next_state(:q, char, {last1, last2, _}), do: {<<char>>, last1, last2}
 
   def make_gram(:m, char, _prev), do: <<char>>
   def make_gram(:d, _char, {""}), do: nil
   def make_gram(:d, char, {last1}), do: last1 <> <<char>>
   def make_gram(:t, _char, {_last1, ""}), do: nil
   def make_gram(:t, char, {last1, last2}), do: last2 <> last1 <> <<char>>
+  def make_gram(:q, _char, {_last1, _last2, ""}), do: nil
+  def make_gram(:q, char, {last1, last2, last3}), do: last3 <> last2 <> last1 <> <<char>>
 
   def init_state(:m), do: []
   def init_state(:d), do: {""}
   def init_state(:t), do: {"", ""}
+  def init_state(:q), do: {"", "", ""}
 
   # def do_line(line, mode, submode) do
   #   spawn(__MODULE__, :read_n, [self, mode, submode, line, init_state(mode)])
@@ -178,43 +171,14 @@ defmodule Reader do
     # |> IO.inspect# loop(%{})
   end
 
-  # def loop(state) do
-  #   receive do
-  #     :done ->
-  #       state
-  #     {:gram, nil} ->
-  #       loop(state)
-  #     {:gram, gram} ->
-  #       Map.update(state, gram, 1, &(&1 + 1))
-  #       |> loop()
-  #     _ ->
-  #       loop(state)
-  #   end
-  # end
 
-  # def filter(k) do
-  #   false #k =~ ~r/^[a-z]+$/i
-  # end
-
-
-  # gets through almost all lines before first
-  # message back to mode process starts
-  # perhaps the msg of list of maps is too large for message passing
-
-
+  #process for each line, results merged as they come in
   def do_lines(lines, {mode, submode}=_m, output_dir) do
-    #process for each line, results merged as they come in
-    # IO.inspect Enum.count(lines)
 
     lines
-    # |> Enum.take(20)
-    # |> Util.starting(m)
-    # |> Parallel.pmap(&__MODULE__.do_line(&1, mode, submode))
     |> Parallel.pmap_map_merge(&__MODULE__.do_line(&1, mode, submode))
-    # |> Util.wait_over(m)
-    # # |> IO.inspect
-    |> Util.sort_map_by_val
-    # |> Util.ignore_all_letters
+    # |> Util.sort_map_by_val
+    # |> Enum.sort(fn({_k1, v1}, {_k2, v2}) -> v1 > v2 end)
     |> Writer.write(mode, submode, output_dir)
 
   end
@@ -237,8 +201,4 @@ defmodule Reader do
     String.to_atom(to_string(mode) <> to_string(submode))
   end
 
-  # def start(modes) do
-  #   # modes
-  #   # |> Enum.map(&:ets.new(modetable(&1), [:ordered_set, :public, :named_table]))
-  # end
 end
